@@ -1,0 +1,56 @@
+{
+	"name": "marklines",
+	"displayName": "Lines for MARK Comments",
+	"description": "Formats XCode-style \"MARK\" separator comments",
+	"version": "0.1.0",
+	"publisher": "jrpat",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.32.0"
+	},
+	"icon": ".github/media/icon.png",
+	"galleryBanner": {
+		"color": "#202026",
+		"theme": "dark"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/jrpat/vscode-marklines"
+	},
+	"bugs": {
+		"type": "git",
+		"url": "https://github.com/jrpat/vscode-marklines"
+	},
+	"categories": [
+		"Other"
+	],
+	"keywords": [
+		"mark",
+		"meta",
+		"comment",
+		"xcode",
+		"annotation"
+	],
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"main": "./out/extension.js",
+	"contributes": {},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"lint": "eslint . --ext .ts,.tsx",
+		"watch": "tsc -watch -p ./"
+	},
+	"devDependencies": {
+		"@types/mocha": "^10.0.10",
+		"@types/node": "^16.11.7",
+		"@types/vscode": "^1.32.0",
+		"@typescript-eslint/eslint-plugin": "^5.30.0",
+		"@typescript-eslint/parser": "^5.30.0",
+		"@vscode/test-electron": "^2.4.1",
+		"@vscode/vsce": "^3.7.0",
+		"eslint": "^8.13.0",
+		"typescript": "^4.7.2"
+	}
+}
