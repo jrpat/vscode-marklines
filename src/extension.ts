@@ -172,8 +172,7 @@ export function activate(context: vscode.ExtensionContext) {
     (event) => {
       if (activeEditor && event.document === activeEditor.document) {
         // Extract changed ranges from the event
-        const changedRanges = event.contentChanges.map((change) => change.range)
-        triggerUpdateDecorations(changedRanges, true)
+        triggerUpdateDecorations([], true)
       }
     },
     null,
