@@ -9,7 +9,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // MARK: - Colors
 
-  const color = `color-mix(in srgb, var(--vscode-editorLineNumber-foreground) 40%, transparent)`
+  const color = `color-mix(in srgb, var(--vscode-editorGroup-border) 40%, transparent)`
 
   // MARK: - Decorator types
 
