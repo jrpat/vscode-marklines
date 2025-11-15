@@ -37,6 +37,8 @@
 	"main": "./out/extension.js",
 	"contributes": {},
 	"scripts": {
+		"package": "npx vsce package",
+		"publish": "npx vsce publish",
 		"vscode:prepublish": "npm run compile",
 		"compile": "tsc -p ./",
 		"lint": "eslint . --ext .ts,.tsx",
