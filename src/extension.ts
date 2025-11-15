@@ -1,168 +1,123 @@
 import * as vscode from "vscode"
+import type { TextDocument, TextEditor } from "vscode"
 
-// Create output channel for logging
+type DecoList = vscode.DecorationOptions[]
+
+const win = vscode.window
 const log = vscode.window.createOutputChannel("MarkLines")
 
+let timeouts: Map<TextEditor, NodeJS.Timer> = new Map()
+
+function popTimeout(ed: TextEditor) {
+  const timeout = timeouts.get(ed)
+  timeouts.delete(ed)
+  return timeout
+}
+
 export function activate(context: vscode.ExtensionContext) {
-  log.appendLine("Extension activated")
-  let timeout: NodeJS.Timer | undefined = undefined
+  const print = log.appendLine.bind(log)
+  context.subscriptions.push(log)
+
+  print("Extension activated")
 
   // MARK: - Colors
 
-  const color = `color-mix(in srgb, var(--vscode-editorGroup-border) 40%, transparent)`
+  const color = `var(--vscode-editorGroup-border)`
 
-  // MARK: - Decorator types
+  // MARK: - Decorations
 
-  const markLineAboveDecorationType =
-    vscode.window.createTextEditorDecorationType({
-      isWholeLine: true,
-      border: `
+  const lineAboveDeco = win.createTextEditorDecorationType({
+    isWholeLine: true,
+    border: `
         border: none;
         border-top: 1px solid ${color};
       `,
-    })
-
-  const markLineBelowDecorationType =
-    vscode.window.createTextEditorDecorationType({
-      isWholeLine: true,
-      border: `
-        border-bottom: 1px solid ${color};
-      `,
-    })
-
-  const markBoldDecorationType = vscode.window.createTextEditorDecorationType({
-    isWholeLine: false,
+  })
+  const lineBelowDeco = win.createTextEditorDecorationType({
+    isWholeLine: true,
+    border: `
+      border: none;
+      margin-bottom: 0;
+      border-bottom: 1px solid ${color};
+    `,
+  })
+  const boldDeco = win.createTextEditorDecorationType({
+    isWholeLine: true,
     fontWeight: "bold !important",
   })
 
-  let activeEditor = vscode.window.activeTextEditor
+  // TODO: can we get the document language line comment syntax?
+  // See https://github.com/microsoft/vscode/issues/109919
+  // Capture groups: [whole, above, below]
+  const pattern = /^[ \t]*(?:\/\/|#)[ \t]*MARK:[ \t]+(-)?.*?(-)?[ \t]*?$/gm
 
-  // Store all decorations by line number for incremental updates
-  const decorationsByLine = new Map<
-    number,
-    {
-      above?: vscode.DecorationOptions
-      below?: vscode.DecorationOptions
-      bold?: vscode.DecorationOptions
-    }
-  >()
+  function redraw(ed?: TextEditor) {
+    if (!ed) return print("Aborting: no active editor")
 
-  function updateDecorations(ranges?: readonly vscode.Range[]) {
-    if (!activeEditor) {
-      log.appendLine("No active editor, skipping decoration update")
-      return
-    }
-
-    const fileName = activeEditor.document.fileName
-    const document = activeEditor.document
-
-    // Single regex that captures all three patterns:
-    // Group 1: Full prefix (// or # + marker + colon)
-    // Group 2: Comment char (// or #)
-    // Group 3: Marker text (e.g., MARK, TODO, FIXME)
-    // Group 4: Leading dash (optional, indicates line above)
-    // Group 5: Content after marker
-    // Group 6: Trailing dash (optional, indicates line below)
-    const markRegex =
-      /^\s*((\/\/|\#)\s*([A-Z][A-Z0-9\t _-]+):\s+(-)?)(.*?)(\s+-\s*)?$/gm
-
-    // Determine which lines to scan
-    let linesToScan: number[]
-    if (ranges && ranges.length > 0) {
-      // Only scan changed lines
-      const lineSet = new Set<number>()
-      for (const range of ranges) {
-        for (let line = range.start.line; line <= range.end.line; line++) {
-          lineSet.add(line)
-        }
-      }
-      linesToScan = Array.from(lineSet)
-      log.appendLine(
-        `Updating decorations for ${linesToScan.length} changed lines`,
-      )
-    } else {
-      // Full document scan
-      linesToScan = Array.from({ length: document.lineCount }, (_, i) => i)
-      decorationsByLine.clear()
-      log.appendLine(`Full document scan for: ${fileName}`)
-    }
-
-    // Process each line
-    for (const lineNum of linesToScan) {
-      const line = document.lineAt(lineNum)
-      const text = line.text
-
-      // Clear existing decorations for this line
-      decorationsByLine.delete(lineNum)
-
-      // Reset regex state
-      markRegex.lastIndex = 0
-      const match = markRegex.exec(text)
-
-      if (match) {
-        const startPos = line.range.start
-        const endPos = line.range.end
-        const decoration = { range: new vscode.Range(startPos, endPos) }
-
-        const hasLeadingDash = match[4] === "-"
-        const hasTrailingDash =
-          match[6] !== undefined && match[6].trim().endsWith("-")
-
-        decorationsByLine.set(lineNum, {
-          above: hasLeadingDash ? decoration : undefined,
-          below: hasTrailingDash ? decoration : undefined,
-          bold: decoration,
-        })
-      }
-    }
+    const doc = ed.document
+    const text = doc.getText()
 
     // Collect all decorations
-    const lineMarksAbove: vscode.DecorationOptions[] = []
-    const lineMarksBelow: vscode.DecorationOptions[] = []
-    const marksBold: vscode.DecorationOptions[] = []
+    const aboves: DecoList = []
+    const belows: DecoList = []
+    const marks: DecoList = []
 
-    for (const { above, below, bold } of decorationsByLine.values()) {
-      if (above) lineMarksAbove.push(above)
-      if (below) lineMarksBelow.push(below)
-      if (bold) marksBold.push(bold)
+    let match: RegExpExecArray | null = null
+    while ((match = pattern.exec(text))) {
+      print(`Match: ${match}`)
+
+      const bgn = doc.positionAt(match.index)
+      const end = doc.positionAt(match.index + match[0].length)
+      const decoration = { range: new vscode.Range(bgn, end) }
+
+      const [_, above, below] = match
+
+      marks.push(decoration)
+      if (above) aboves.push(decoration)
+      if (below) belows.push(decoration)
     }
 
-    activeEditor.setDecorations(markLineAboveDecorationType, lineMarksAbove)
-    activeEditor.setDecorations(markLineBelowDecorationType, lineMarksBelow)
-    activeEditor.setDecorations(markBoldDecorationType, marksBold)
+    ed.setDecorations(lineAboveDeco, aboves)
+    ed.setDecorations(lineBelowDeco, belows)
+    ed.setDecorations(boldDeco, marks)
 
-    log.appendLine(
-      `Found ${marksBold.length} marks, ${lineMarksAbove.length} marks with lines above, ${lineMarksBelow.length} marks with lines below`,
-    )
+    print(`Marks:${marks.length} Above:${aboves.length} Below:${belows.length}`)
   }
 
-  function triggerUpdateDecorations(
-    ranges?: readonly vscode.Range[],
-    debounce = false,
-  ) {
-    if (timeout) {
-      clearTimeout(timeout)
-      timeout = undefined
-    }
-    if (debounce) {
-      timeout = setTimeout(() => updateDecorations(ranges), 500)
-    } else {
-      updateDecorations(ranges)
-    }
+  function editorNeedsRedraw(ed?: TextEditor, debounce = 0) {
+    if (!ed) return
+    clearTimeout(popTimeout(ed))
+    const timeout = setTimeout(() => redraw(ed), debounce)
+    timeouts.set(ed, timeout)
   }
 
-  if (activeEditor) {
-    triggerUpdateDecorations()
+  function documentNeedsRedraw(doc?: TextDocument, debounce = 0) {
+    for (const ed of win.visibleTextEditors)
+      if (ed.document === doc) editorNeedsRedraw(ed, debounce)
+  }
+
+  for (const ed of win.visibleTextEditors) {
+    editorNeedsRedraw(ed)
   }
 
   vscode.window.onDidChangeActiveTextEditor(
-    (editor) => {
-      activeEditor = editor
-      if (editor) {
-        log.appendLine(`Active editor changed to: ${editor.document.fileName}`)
-        // Full document scan when switching editors
-        triggerUpdateDecorations()
-      }
+    (ed) => {
+      print("Active editor changed")
+      editorNeedsRedraw(ed)
+    },
+    null,
+    context.subscriptions,
+  )
+
+  vscode.window.onDidChangeVisibleTextEditors((editors) => {
+    for (const ed of timeouts.keys())
+      if (!editors.includes(ed)) clearTimeout(popTimeout(ed))
+  })
+
+  vscode.workspace.onDidOpenTextDocument(
+    (doc) => {
+      log.appendLine("Document opened")
+      documentNeedsRedraw(doc)
     },
     null,
     context.subscriptions,
@@ -170,31 +125,16 @@ export function activate(context: vscode.ExtensionContext) {
 
   vscode.workspace.onDidChangeTextDocument(
     (event) => {
-      if (activeEditor && event.document === activeEditor.document) {
-        // Extract changed ranges from the event
-        triggerUpdateDecorations([], true)
+      if (win.activeTextEditor?.document === event.document) {
+        print("Document changed")
+        editorNeedsRedraw(win.activeTextEditor, 500)
       }
     },
     null,
     context.subscriptions,
   )
-
-  vscode.workspace.onDidOpenTextDocument(
-    (document) => {
-      if (activeEditor && document === activeEditor.document) {
-        // Full document scan when opening a new document
-        triggerUpdateDecorations()
-      }
-    },
-    null,
-    context.subscriptions,
-  )
-
-  // Add output channel to subscriptions for cleanup
-  context.subscriptions.push(log)
 }
 
 export function deactivate() {
   log.appendLine("Extension deactivated")
-  log.dispose()
 }
