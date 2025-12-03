@@ -2,7 +2,7 @@
   "name": "marklines",
   "displayName": "Lines for MARK Comments",
   "description": "Formats XCode-style \"MARK\" separator comments",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "publisher": "jrpat",
   "license": "MIT",
   "engines": {

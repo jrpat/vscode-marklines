@@ -20,10 +20,12 @@ export function activate(context: vscode.ExtensionContext) {
 
   print("Extension activated")
 
+  //
   // MARK: - Colors
 
   const color = `var(--vscode-editorGroup-border)`
 
+  //
   // MARK: - Decorations
 
   const lineAboveDeco = win.createTextEditorDecorationType({
@@ -42,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
     `,
   })
   const boldDeco = win.createTextEditorDecorationType({
-    isWholeLine: true,
+    isWholeLine: false,
     fontWeight: "bold !important",
   })
 
@@ -57,7 +59,6 @@ export function activate(context: vscode.ExtensionContext) {
     const doc = ed.document
     const text = doc.getText()
 
-    // Collect all decorations
     const aboves: DecoList = []
     const belows: DecoList = []
     const marks: DecoList = []
@@ -77,9 +78,9 @@ export function activate(context: vscode.ExtensionContext) {
       if (below) belows.push(decoration)
     }
 
+    ed.setDecorations(boldDeco, marks)
     ed.setDecorations(lineAboveDeco, aboves)
     ed.setDecorations(lineBelowDeco, belows)
-    ed.setDecorations(boldDeco, marks)
 
     print(`Marks:${marks.length} Above:${aboves.length} Below:${belows.length}`)
   }
